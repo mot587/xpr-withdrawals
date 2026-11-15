@@ -111,7 +111,7 @@ th.sort[aria-sort="descending"]::after { content: " ▼"; font-size: 10px; }
   <section id="allview">
   <p class="note" id="allcount"></p>
   <div class="tablewrap scrollbox"><table id="allreq"></table></div>
-  <p class="note">Every withdrawal request in the window, one row per request, newest first; click a column header to sort by it. The payout columns are filled when a bridge payout of exactly <em>quantity − fee</em> to the memo address was found after the request, and empty while it waits.</p>
+  <p class="note">Every withdrawal request in the window, one row per request, newest first; click a column header to sort by it. The payout columns are filled when a bridge payout of <em>quantity − fee</em> (USDC: within 0.05) to the memo address was found after the request, and empty while it waits.</p>
   </section>
 
   <section id="overview">
@@ -124,7 +124,7 @@ th.sort[aria-sort="descending"]::after { content: " ▼"; font-size: 10px; }
 
   <h2>Waiting withdrawals</h2>
   <div class="tablewrap"><table id="waiting"></table></div>
-  <p class="note">A withdrawal is paid when the bridge wallet sends <em>quantity − fee</em> of the real token contract to the memo address after the request. Rows with other later payouts to the same recipient may be partial payments; the last column lists them.</p>
+  <p class="note">A withdrawal is paid when the bridge wallet sends <em>quantity − fee</em> (for USDC, anything within 0.05 of it) of the real token contract to the memo address after the request. Rows with other later payouts to the same recipient may be partial payments; the last column lists them.</p>
 
   <div id="exclwrap">
   <h2>Excluded: not owed</h2>

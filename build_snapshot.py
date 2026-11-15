@@ -36,8 +36,9 @@ MATCH_BUFFER_DAYS = 3
 
 # memo coin -> real payout token on Ethereum. Matching is by contract address, never by symbol:
 # the bridge wallet receives look-alike scam tokens named "USDC", "ETH" and so on.
+# tol: how far a payout may be from quantity - fee and still pay the request (USDC: within 0.05).
 TOKENS = {
-    "USDC":  {"addr": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", "tol": 1e-6},
+    "USDC":  {"addr": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", "tol": 0.05},
     "USDT":  {"addr": "0xdac17f958d2ee523a2206206994597c13d831ec7", "tol": 1e-6},
     "PYUSD": {"addr": "0x6c3ea9036406852006290770bedfcaba0e23a0e8", "tol": 1e-6},
     "PAXG":  {"addr": "0x45804880de22913dafe09f4980848ece6ecbaf78", "tol": 1e-6},
