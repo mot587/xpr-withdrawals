@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="XPR Network to Ethereum bridge withdrawals that are still waiting for a payout.">
+<title>XPR to Ethereum withdrawals</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #fff; --ink: #1b1f27; --muted: #667085; --line: #e4e7ec;
+  --accent: #5b3df5; --warn: #b54708; --warn-bg: #fff4e5; --bad: #b42318; --bad-bg: #fee4e2;
+  --ok: #067647; --ok-bg: #dcfae6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12141a; --card: #1b1e27; --ink: #e8eaf0; --muted: #9aa3b5; --line: #2c3040;
+    --accent: #9b8bff; --warn: #fdb022; --warn-bg: #3a2a0c; --bad: #fda29b; --bad-bg: #3d1713;
+    --ok: #75e0a7; --ok-bg: #0f2e1f;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 28px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 14px; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; }
+#status { color: var(--muted); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.card .k { color: var(--muted); font-size: 12px; }
+.card .v { font-size: 22px; font-weight: 600; margin-top: 2px; }
+.card .d { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.tablewrap { background: var(--card); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; white-space: nowrap; }
+th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 500; font-size: 12px; }
+tr:last-child td { border-bottom: 0; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.excl { background: var(--bad); color: var(--card); font-weight: 600; }
+tr.excl td { background: var(--bad-bg); }
+tr.excl td.n { text-decoration: line-through; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.note { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+.err { background: var(--bad-bg); color: var(--bad); border-radius: 8px; padding: 10px 14px; margin: 10px 0; display: none; }
+.empty { padding: 18px; color: var(--muted); }
+.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--card); }
+.tabs a { padding: 5px 12px; color: var(--muted); }
+.tabs a + a { border-left: 1px solid var(--line); }
+.tabs a.on { background: var(--accent); color: #fff; }
+.tabs a:hover { text-decoration: none; }
+td.blank { color: var(--muted); }
+[hidden] { display: none !important; }
+body.wide main { max-width: none; }
+th.sort { cursor: pointer; user-select: none; }
+th.sort:hover { color: var(--ink); }
+th.sort[aria-sort="ascending"]::after { content: " ▲"; font-size: 10px; }
+th.sort[aria-sort="descending"]::after { content: " ▼"; font-size: 10px; }
+/* The All list scrolls inside its own box, so both scroll bars stay on screen however long the list is. */
+.scrollbox { max-height: calc(100vh - 190px); min-height: 240px; overflow: auto; }
+.scrollbox th { position: sticky; top: 0; z-index: 1; background: var(--card); box-shadow: inset 0 -1px 0 var(--line); }
+.scrollbox::-webkit-scrollbar { width: 12px; height: 12px; }
+.scrollbox::-webkit-scrollbar-track { background: var(--bg); }
+.scrollbox::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 6px; border: 3px solid var(--bg); }
+.scrollbox::-webkit-scrollbar-corner { background: var(--bg); }
+.scrollbox { scrollbar-color: var(--muted) var(--bg); }
+#allreq th, #allreq td { padding: 5px 7px; font-size: 13px; }
+#allreq .pill { padding: 0 6px; }
+#allcount { margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">XPR to Ethereum withdrawals: still waiting</h1>
+  <p class="sub">x-tokens sent to <span class="mono">proton.wrap</span> on XPR Network with an Ethereum recipient in the memo<span id="subwhat">, with no matching payout yet</span> from the bridge wallet
+    <a class="mono" href="https://etherscan.io/address/0x8329D783F96e48d50f0f1f5a3c7F83b73A5c0218" target="_blank" rel="noopener">0x8329…0218</a>.</p>
+
+  <div class="bar">
+    <nav class="tabs" aria-label="View">
+      <a href="#" data-view="overview">Waiting overview</a>
+      <a href="#all" data-view="all">All requests</a>
+    </nav>
+    <label>Look back
+      <select id="days">
+        <option value="1">1 day</option>
+        <option value="3">3 days</option>
+        <option value="7" selected>7 days</option>
+        <option value="14">14 days</option>
+        <option value="30">30 days</option>
+      </select>
+    </label>
+    <label id="statewrap">Show
+      <select id="state">
+        <option value="">every request</option>
+        <option value="waiting">waiting only</option>
+        <option value="paid">paid only</option>
+        <option value="excluded">excluded only</option>
+      </select>
+    </label>
+    <span id="status"></span>
+  </div>
+  <div class="err" id="err"></div>
+
+  <section id="allview">
+  <p class="note" id="allcount"></p>
+  <div class="tablewrap scrollbox"><table id="allreq"></table></div>
+  <p class="note">Every withdrawal request in the window, one row per request, newest first; click a column header to sort by it. The payout columns are filled when a bridge payout of exactly <em>quantity − fee</em> to the memo address was found after the request, and empty while it waits.</p>
+  </section>
+
+  <section id="overview">
+
+  <div class="cards" id="cards"></div>
+
+  <h2>Waiting, by token</h2>
+  <div class="tablewrap"><table id="bytoken"></table></div>
+  <p class="note">"Wallet" is what the bridge wallet holds on Ethereum right now. Where waiting is larger than the wallet, the bridge cannot pay everything until it is topped up.</p>
+
+  <h2>Waiting withdrawals</h2>
+  <div class="tablewrap"><table id="waiting"></table></div>
+  <p class="note">A withdrawal is paid when the bridge wallet sends <em>quantity − fee</em> of the real token contract to the memo address after the request. Rows with other later payouts to the same recipient may be partial payments; the last column lists them.</p>
+
+  <div id="exclwrap">
+  <h2>Excluded: not owed</h2>
+  <div class="tablewrap"><table id="excluded"></table></div>
+  <p class="note">Requests marked as not owed (a hacker's withdrawal, for one). They are not counted as waiting, in the oldest waiting age or in the wallet shortfall above.</p>
+  </div>
+
+  <h2>USDC sent out that paid no withdrawal</h2>
+  <div class="tablewrap"><table id="outby"></table></div>
+  <div class="tablewrap" style="margin-top:10px"><table id="outlist"></table></div>
+  <p class="note">USDC transfers from the bridge wallet that match no withdrawal request: treasury moves to other addresses, payouts of requests made more than 3 days before this window, or partial payments. Names are Blockscout's contract labels where it has one.</p>
+
+  <h2>Paid in this window</h2>
+  <div class="tablewrap"><table id="paid"></table></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+// Replaced with the latest snapshot by build_snapshot.py; data.json is polled for newer ones.
+let snap = /*SNAPSHOT*/null;
+const STALE_MIN = 25, POLL_MS = 60000;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (n, d = 2) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const amt = (n, coin) => fmt(n, ["ETH", "PAXG", "PAX"].includes(coin) ? 6 : 2);
+const utc = ts => Date.parse(ts + "Z");
+const show = ts => ts.replace("T", " ");
+function age(ts) {
+  const s = (Date.now() - utc(ts)) / 1000;
+  if (s < 3600) return Math.max(1, Math.round(s / 60)) + " min";
+  if (s < 172800) return (s / 3600).toFixed(1) + " h";
+  return (s / 86400).toFixed(1) + " d";
+}
+const ageClass = ts => { const h = (Date.now() - utc(ts)) / 36e5; return h > 24 ? "bad" : h > 1 ? "warn" : "ok"; };
+const addrLink = a => `<a class="mono" href="https://etherscan.io/address/${a}" target="_blank" rel="noopener">${a.slice(0, 8)}…${a.slice(-6)}</a>`;
+const xprTrx = t => `<a class="mono" href="https://explorer.xprnetwork.org/transaction/${t}" target="_blank" rel="noopener">${t.slice(0, 8)}…</a>`;
+// Compact forms for the wide All list: month-day time (full UTC time on hover, sorts by it) and 6+4 address.
+const showShort = ts => `<td data-v="${ts}" title="${show(ts)} UTC">${ts.slice(5).replace("T", " ")}</td>`;
+const addrShort = a => `<a class="mono" href="https://etherscan.io/address/${a}" target="_blank" rel="noopener" title="${a}">${a.slice(0, 6)}…${a.slice(-4)}</a>`;
+const ethTx = h => `<a class="mono" href="https://etherscan.io/tx/${h}" target="_blank" rel="noopener">${h.slice(0, 8)}…</a>`;
+
+// Row layouts are documented in build_snapshot.py (snapshot()).
+function render() {
+  const days = Number($("days").value);
+  const cutoff = new Date(Date.now() - days * 864e5).toISOString().slice(0, 19);
+  const wallet = snap.wallet;
+  const waiting = snap.waiting.filter(r => r[0] >= cutoff);
+  const paidAll = snap.paid.filter(r => r[0] >= cutoff);
+  const paidCount = paidAll.length;
+  const unmapped = snap.unmapped.filter(u => u[0] >= cutoff);
+  // [ts, from, coin, qty, fee, to, trx, label]; older snapshots have no such list.
+  const excluded = (snap.excluded || []).filter(r => r[0] >= cutoff);
+  const total = waiting.length + paidCount + unmapped.length + excluded.length;
+
+  const byCoin = {};
+  for (const r of waiting) {
+    const c = byCoin[r[2]] ||= { n: 0, net: 0 };
+    c.n++; c.net += r[3] - r[4];
+  }
+  const short = Object.keys(byCoin).filter(c => (wallet[c] ?? 0) < byCoin[c].net);
+  const oldest = waiting[0];
+
+  // [ts, to, amt, eth_hash, name], newest first; older snapshots have no such list.
+  const outs = (snap.usdc_unmatched || []).filter(o => o[0] >= cutoff);
+  const byTo = {};
+  for (const [ts, to, a, , name] of outs) {
+    const t = byTo[to] ||= { n: 0, sum: 0, last: ts, name };
+    t.n++; t.sum += a;
+  }
+  const outSum = outs.reduce((s, o) => s + o[2], 0);
+
+  $("cards").innerHTML = [
+    ["Waiting", waiting.length, `of ${total} requests in ${days} d` + (excluded.length ? `, ${excluded.length} excluded` : "")],
+    ["Oldest waiting", oldest ? age(oldest[0]) : "none", oldest ? `${show(oldest[0])} UTC` : ""],
+    ["Paid", paidCount, "matched to an Ethereum payout"],
+    ["Wallet short for", short.length ? short.join(", ") : "none", short.length ? "waiting exceeds wallet balance" : "wallet covers all waiting"],
+    ["USDC out, no request", fmt(outSum, 0), `${outs.length} transfers to ${Object.keys(byTo).length} addresses in ${days} d`],
+  ].map(([k, v, d]) => `<div class="card"><div class="k">${k}</div><div class="v">${esc(v)}</div><div class="d">${esc(d)}</div></div>`).join("");
+
+  const coins = Object.keys(byCoin).sort((a, b) => byCoin[b].net - byCoin[a].net);
+  $("bytoken").innerHTML = coins.length
+    ? `<tr><th>Token</th><th class="n">Requests</th><th class="n">Waiting (net)</th><th class="n">Wallet</th><th class="n">Shortfall</th></tr>` +
+      coins.map(c => {
+        const v = byCoin[c], w = wallet[c] ?? 0, s = v.net - w;
+        return `<tr><td>${esc(c)}</td><td class="n">${v.n}</td><td class="n">${amt(v.net, c)}</td><td class="n">${amt(w, c)}</td>` +
+               `<td class="n">${s > 0 ? `<span class="pill bad">${amt(s, c)}</span>` : `<span class="pill ok">covered</span>`}</td></tr>`;
+      }).join("")
+    : `<tr><td class="empty">Nothing is waiting.</td></tr>`;
+
+  $("waiting").innerHTML = waiting.length
+    ? `<tr><th>Waiting</th><th>Requested (UTC)</th><th>XPR account</th><th>Token</th><th class="n">Sent</th><th class="n">Fee</th><th class="n">To pay</th><th>Recipient</th><th>XPR tx</th><th>Later payouts to recipient</th></tr>` +
+      waiting.map(([ts, from, coin, qty, fee, to, trx, others]) =>
+        `<tr><td><span class="pill ${ageClass(ts)}">${age(ts)}</span></td><td>${show(ts)}</td>` +
+        `<td>${esc(from)}</td><td>${esc(coin)}</td><td class="n">${amt(qty, coin)}</td><td class="n">${fmt(fee, coin === "ETH" ? 8 : 6)}</td>` +
+        `<td class="n"><b>${amt(qty - fee, coin)}</b></td><td>${addrLink(to)}</td><td>${xprTrx(trx)}</td>` +
+        `<td>${others.map(p => `${ethTx(p[0])} ${amt(p[2], coin)}`).join("<br>")}</td></tr>`).join("")
+    : `<tr><td class="empty">Nothing is waiting in the last ${days} days.</td></tr>`;
+
+  const tos = Object.keys(byTo).sort((a, b) => byTo[b].sum - byTo[a].sum);
+  $("outby").innerHTML = tos.length
+    ? `<tr><th>Recipient</th><th>Name</th><th class="n">Transfers</th><th class="n">USDC</th><th>Last (UTC)</th></tr>` +
+      tos.map(to => { const t = byTo[to];
+        return `<tr><td>${addrLink(to)}</td><td>${esc(t.name)}</td><td class="n">${t.n}</td><td class="n">${amt(t.sum, "USDC")}</td><td>${show(t.last)}</td></tr>`; }).join("") +
+      `<tr><td><b>Total</b></td><td></td><td class="n"><b>${outs.length}</b></td><td class="n"><b>${amt(outSum, "USDC")}</b></td><td></td></tr>`
+    : `<tr><td class="empty">No such USDC transfers in the last ${days} days.</td></tr>`;
+  $("outlist").innerHTML = outs.length
+    ? `<tr><th>Sent (UTC)</th><th>Recipient</th><th>Name</th><th class="n">USDC</th><th>ETH tx</th></tr>` +
+      outs.map(([ts, to, a, h, name]) =>
+        `<tr><td>${show(ts)}</td><td>${addrLink(to)}</td><td>${esc(name)}</td><td class="n">${amt(a, "USDC")}</td><td>${ethTx(h)}</td></tr>`).join("")
+    : "";
+
+  $("paid").innerHTML = paidAll.length
+    ? head(["Requested (UTC)", "Paid (UTC)", "Delay|n", "XPR account", "Token", "Paid|n", "Recipient", "ETH tx"]) + "<tbody>" +
+      paidAll.map(([ts, from, coin, , , to, , pts, pamt, phash]) =>
+        `<tr><td>${show(ts)}</td><td>${show(pts)}</td>${delayTd(ts, pts)}` +
+        `<td>${esc(from)}</td><td>${esc(coin)}</td>${numTd(pamt, amt(pamt, coin))}<td data-v="${to}">${addrLink(to)}</td><td data-v="${phash}">${ethTx(phash)}</td></tr>`).join("") + "</tbody>"
+    : `<tr><td class="empty">Nothing was paid in the last ${days} days.</td></tr>`;
+  sortTable("paid");
+
+  $("exclwrap").hidden = !excluded.length;
+  $("excluded").innerHTML = excluded.length
+    ? `<tr><th>Marked</th><th>Requested (UTC)</th><th>XPR account</th><th>Token</th><th class="n">Sent</th><th class="n">To pay</th><th>Recipient</th><th>XPR tx</th></tr>` +
+      excluded.map(([ts, from, coin, qty, fee, to, trx, label]) =>
+        `<tr><td><span class="pill excl">${esc(label)}</span></td><td>${show(ts)}</td><td>${esc(from)}</td><td>${esc(coin)}</td>` +
+        `<td class="n">${amt(qty, coin)}</td><td class="n">${amt(qty - fee, coin)}</td><td>${addrLink(to)}</td><td>${xprTrx(trx)}</td></tr>`).join("")
+    : "";
+
+  renderAll(days, waiting, paidAll, unmapped, excluded);
+
+  const err = $("err");
+  if (unmapped.length) {
+    err.style.display = "block";
+    err.textContent = `${unmapped.length} withdrawal request(s) use a token this page has no Ethereum contract for (${[...new Set(unmapped.map(u => u[2]))].join(", ")}); ` +
+      (view() === "all" ? "they are listed with no payout." : "they are not listed above.");
+  } else err.style.display = "none";
+  status();
+}
+
+// Delay as minutes under an hour, hours under a day, days beyond; the cell's data-v keeps the minutes for sorting.
+function delayText(min) {
+  if (min < 60) return fmt(min, 0) + " min";
+  if (min < 1440) return fmt(min / 60, 1) + " h";
+  return fmt(min / 1440, 1) + " d";
+}
+const delayTd = (ts, pts) => { const m = (utc(pts) - utc(ts)) / 60000; return `<td class="n" data-v="${m}">${delayText(m)}</td>`; };
+const numTd = (v, text) => `<td class="n" data-v="${v}">${text}</td>`;
+// "Label|n" right-aligns a numeric column.
+const head = cols => "<thead><tr>" + cols.map(c => { const [l, n] = c.split("|"); return `<th class="sort${n ? " n" : ""}">${esc(l)}</th>`; }).join("") + "</tr></thead>";
+
+// Click-to-sort. A cell sorts by its data-v (numbers, full hashes) or else its text; empty cells go last
+// either way. The choice survives re-renders (new snapshot, window change) and starts as the data's own order.
+const sorts = {};
+function sortTable(id) {
+  const t = $(id), body = t.tBodies[0], ths = t.tHead ? [...t.tHead.rows[0].cells] : [];
+  ths.forEach((th, i) => th.onclick = () => {
+    const s = sorts[id];
+    // first click on a column sorts descending (newest, largest, slowest first), the next one ascending
+    sorts[id] = { col: i, dir: s && s.col === i ? -s.dir : -1 };
+    sortTable(id);
+  });
+  const s = sorts[id];
+  ths.forEach((th, i) => s && s.col === i ? th.setAttribute("aria-sort", s.dir > 0 ? "ascending" : "descending") : th.removeAttribute("aria-sort"));
+  if (!s || !body) return;
+  const key = tr => { const c = tr.cells[s.col]; const v = c.dataset.v ?? c.textContent.trim(); return v === "" ? null : (c.classList.contains("n") ? Number(v) : v); };
+  const rows = [...body.rows].map(tr => [key(tr), tr]);
+  rows.sort(([a], [b]) => a === null ? (b === null ? 0 : 1) : b === null ? -1 : (a < b ? -s.dir : a > b ? s.dir : 0));
+  body.append(...rows.map(r => r[1]));
+}
+
+// One row per request: [ts, from, coin, qty, fee, to, trx, state, paid_ts, paid_amt, eth_hash], payout fields null while unpaid.
+function renderAll(days, waiting, paidAll, unmapped, excluded) {
+  const want = $("state").value;
+  const rows = [
+    ...paidAll.map(r => [...r.slice(0, 7), "paid", r[7], r[8], r[9]]),
+    ...waiting.map(r => [...r.slice(0, 7), "waiting", null, null, null]),
+    ...unmapped.map(r => [...r.slice(0, 7), "unmapped", null, null, null]),
+    ...excluded.map(r => [...r.slice(0, 7), "excluded", null, null, null, r[7]]),
+  ].filter(r => !want || r[7] === want || (want === "waiting" && r[7] === "unmapped"))
+   .sort((a, b) => a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0);
+  // Waiting shows how long, colored like the overview's age (green < 1 h, amber < 24 h, red beyond).
+  const pill = (st, label, ts) => st === "paid" ? `<span class="pill ok">paid</span>`
+    : st === "waiting" ? `<span class="pill ${ageClass(ts)}">waiting ${age(ts)}</span>`
+    : st === "excluded" ? `<span class="pill excl" title="excluded: not owed">${esc(label)}</span>` : `<span class="pill bad">no ETH token</span>`;
+  const blank = `<td class="blank"></td>`;
+  const blankN = `<td class="blank n"></td>`;
+  $("allcount").textContent = `${rows.length} request(s) in the last ${days} days.`;
+  $("allreq").innerHTML = rows.length
+    ? head(["Requested (UTC)", "XPR account", "Token", "Sent|n", "Fee|n", "To pay|n", "Recipient", "XPR tx",
+            "Status", "Paid (UTC)", "Delay|n", "Paid|n", "ETH tx"]) + "<tbody>" +
+      rows.map(([ts, from, coin, qty, fee, to, trx, st, pts, pamt, phash, label]) =>
+        `<tr${st === "excluded" ? ` class="excl"` : ""}>${showShort(ts)}<td>${esc(from)}</td><td>${esc(coin)}</td>${numTd(qty, amt(qty, coin))}` +
+        `${numTd(fee, fmt(fee, coin === "ETH" ? 8 : 6))}${numTd(qty - fee, amt(qty - fee, coin))}<td data-v="${to}">${addrShort(to)}</td><td data-v="${trx}">${xprTrx(trx)}</td>` +
+        `<td data-v="${st} ${ts}">${pill(st, label, ts)}</td>` +
+        (pts ? `${showShort(pts)}${delayTd(ts, pts)}${numTd(pamt, amt(pamt, coin))}<td data-v="${phash}">${ethTx(phash)}</td>`
+             : blank + blankN + blankN + blank) +
+        `</tr>`).join("") + "</tbody>"
+    : `<tr><td class="empty">No requests match in the last ${days} days.</td></tr>`;
+  sortTable("allreq");
+}
+
+// "#all" shows every request as one list; anything else is the waiting overview.
+const view = () => location.hash === "#all" ? "all" : "overview";
+function applyView() {
+  const v = view();
+  $("overview").hidden = v !== "overview";
+  $("allview").hidden = v !== "all";
+  $("statewrap").hidden = v !== "all";
+  document.body.classList.toggle("wide", v === "all");
+  $("subwhat").textContent = v === "all" ? ", paid or not, with the payout" : ", with no matching payout yet";
+  $("title").textContent = v === "all" ? "XPR to Ethereum withdrawals: every request" : "XPR to Ethereum withdrawals: still waiting";
+  document.querySelectorAll(".tabs a").forEach(a => a.classList.toggle("on", a.dataset.view === v));
+  render();
+}
+
+// "Updated" is the snapshot's own time, so a stuck build shows up here instead of looking fresh.
+function status() {
+  const min = (Date.now() - utc(snap.generated)) / 60000;
+  const el = $("status");
+  el.textContent = `Updated ${age(snap.generated)} ago` + (min > STALE_MIN ? " · data may be out of date" : "");
+  el.style.color = min > STALE_MIN ? "var(--bad)" : "";
+}
+
+async function poll() {
+  try {
+    const r = await fetch("data.json", { cache: "no-cache" });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.generated !== snap.generated) { snap = d; render(); }
+  } catch (e) { /* keep showing the last snapshot */ }
+}
+
+$("days").onchange = render;
+$("state").onchange = render;
+window.onhashchange = applyView;
+applyView();
+setInterval(status, 30000);
+setInterval(poll, POLL_MS);
+</script>
+</body>
+</html>
